@@ -7,26 +7,25 @@ import requests
 import time
 import word
 import threading
-from g_tk import getNewGTK, getOldGTK
+from g_tk import getNewGTK,getOldGTK
 from cookies import cookies
 import sys
-
 reload(sys)
 sys.setdefaultencoding('utf-8')
 
 pq = Queue.Queue()
 resq = Queue.Queue()
-flage = False
+quit_flage = False
 newqq = []
 
 def que_print(msg):
     pq.put(msg)
 
-def print_thread():
-     while not (flage and pq.empty()):  # 当队列为空且退出标记为True时结束循环
+def que_print_thread():
+     while not (quit_flage and pq.empty()):  # 当队列为空且退出标记为True时结束循环
         try:
-            msg = pq.get(True, 0.1)           # 从队列中取出一个元素，最多阻塞0.1秒
-        except Queue.Empty:                  # 队列空，进入下一个循环
+            msg = pq.get(True, 0.1)  # 从队列中取出一个元素，最多阻塞0.1秒
+        except Queue.Empty:  # 队列空，进入下一个循环
             continue
         print msg
 
@@ -44,28 +43,39 @@ class zone:
         self.qqlist = []
         self.s = requests.Session()
 
+
     def getShow(self):
         self.s.headers.update(self.head1)
         parm = {'e': '2', 'd': '72', 'daid': '5', 'appid': '549000912', 'l': 'M', 's': '3', 'v': '4','t': random.random()}
         ptqurl = "http://ptlogin2.qq.com/ptqrshow"
-        con = self.s.get(ptqurl, params=parm).content   #获取二维码
+        con = self.s.get(ptqurl, params=parm).content #获取二维码
+        que_print(self.s.cookies)
+        def prtoken(t):
+            "验证"
+            e = 0
+            for i in range(len(t)):
+                e += (e << 5) + ord(t[i])
+            return 2147483647 & e
+
         with open('im.png','wb') as f:
             f.write(con)
-        subprocess.call('im.png',shell=True)            #打开二维码图片
+        subprocess.call('im.png', shell=True) #打开二维码图片
         while True:
             parm = {
                     'action': int(time.time()*1000),
                     'ptredirect': '0', 'pt_uistyle': '40',
                     'g': '1', 'ptlang': '2052',
                     'js_type': '1', 'h': '1', 'daid': '5',
-                    't': '1', 'from_ui': '1', 'js_ver': '10191', 'aid': '549000912',
+                    't': '1', 'from_ui': '1', 'js_ver': '10196', 'aid': '549000912',
                     'u1': 'http://qzs.qq.com/qzone/v5/loginsucc.html?para=izone'
                     }
+            parm['login_sig'] = self.s.cookies['qrsig']
+            parm['ptqrtoken'] = prtoken(self.s.cookies['qrsig'])
             forl = "http://ptlogin2.qq.com/ptqrlogin"
             succjs = self.s.get(forl, params=parm).content
             que_print(succjs)
             time.sleep(2)
-            if len(self.s.cookies) > 1:             #登陆认证返回多个cookie，结束循环
+            if len(self.s.cookies) > 1: #登陆认证返回多个cookie，结束循环
                 que_print(u'登陆成功')
                 break
         self.s.headers['Host'] = "ptlogin4.qzone.qq.com"
@@ -74,7 +84,7 @@ class zone:
         self.getTk()
         txt = 'cookies = '+str(self.s.cookies.get_dict())
         self.qq = self.s.cookies['uin'].rsplit('o0')[1]
-        with open('cookies.py', 'w') as co:        #保存新cookies
+        with open('cookies.py', 'w') as co: #保存新cookies
             co.write(txt)
 
     def getTk(self):
@@ -96,13 +106,13 @@ class zone:
         while True:
             txt = random.sample(word.word1, 3)
             if flag == 1:
-                time.sleep(2)
+                time.sleep(1)
                 uid = str(q.get())
-                que_print(u'当前点赞%s'  %newqq)
-                que_print(u'已点赞%s'    %self.qqlist)
+                que_print(u'当前点赞 %s'%newqq)
+                que_print(u'已点赞 %s'%self.qqlist)
                 que_print(u'取出 --->%s' %uid)
             else:
-                time.sleep(60)
+                time.sleep(3)
                 uid = str(resq.get())
                 que_print(u'重复 --->%s' %uid)
             # que_print(u'队列长度%d' %q.qsize())
@@ -114,10 +124,8 @@ class zone:
                 try:
                     po = self.s.post(url, data=form)
                     f = re.findall(u'"message":"(.*)",', po.content)[0]
-                    f = ''
-                    que_print(u'%s--_---%s' %(uid, ly))
+                    que_print(u'%s--留言--%s' %(uid, ly))
                 except Exception, e:
-                    print po.content
                     que_print(u'%s错误---%s' %(str(Exception), e))
                     resq.put(uid)
                     break
@@ -166,27 +174,20 @@ class zone:
                 continue
 
 if __name__ == '__main__':
-    t = threading.Thread(target=print_thread)
+    t = threading.Thread(target=que_print_thread)
     t.start()
     q = Queue.Queue()
     p = zone()
     p.getShow()
-    count = 0
-
-    with open('id.txt','r+') as f:
-        oldId = f.read()
     while True:
-        newId = p.getShuo()
-        if newId != oldId:
-            with open('id.txt','w') as f:
-               f.write(newId)
-            que_print('已更新说说')
+        n = p.getShuo()
+        if n != '817b5624db8b6b581c1c0900':
             break
-        if count%5 == 1:
-            que_print('未发布说说')
+        que_print('未发布说说')
         time.sleep(1)
+    que_print('已更新')
 
-    t1 = threading.Thread(target=p.getVote, args=(newId,))
+    t1 = threading.Thread(target=p.getVote, args=(n,))
     t2 = threading.Thread(target=p.add_msg, args=(1,))
     res = threading.Thread(target=p.add_msg, args=(2,))
 
